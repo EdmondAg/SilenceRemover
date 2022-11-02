@@ -1,108 +1,93 @@
-from wave_file_manager import *
-import matplotlib.pyplot as plt
+from wave_file_manager import wave_file_read_samples, wave_file_write_samples
+from exclude_silence_processing import get_samples_without_silences
+import sys
+from os import path
+from kivy.app import App
+from kivy.uix.label import Label
+from kivy.core.window import Window
 
-SILENCE_THRESHOLD = 50
-GLITCH_MAX_LEN = int(441 * 0.6)  # 6 ms |||||| 1 ms = 44100 / 1000
-SILENCE_MIN_LEN = 4410 * 4  # 400 ms
-MARGIN_START = 4410
-MARGIN_END = 4410
+Window.size = (400, 300)
 
+# print("arguments", sys.argv)
 
-def normalize_sample(sample, max_value):
-    # On couvre tous les cas, meme s'il n'y a que des samples negatif
-    max_sample = max(abs(max(sample)), abs(min(sample)))
+def check_input_file(filename):
+    if len(filename) < 5:
+        return "Nom du fichier invalide"
 
-    rapport = max_value / max_sample
+    input_split = filename.split(".")
+    if input_split == 1:
+        return "Le fichier n'a pas d'extension"
 
-    # On return une liste normalisé.
-    return [e * rapport for e in sample]
+    if input_split[-1].lower() != "wav":
+        return "Uniquement les fichiers wav sont supportés"
 
+    if not path.exists(filename):
+        return "Le fichier d'entrée n'existe pas"
 
-def get_silence_points(samples, threshold, glitch_max_len, silence_min_len, margin_start, margin_end):
-    points = []
-    in_silence_zone = False
-    chunk_count = 0
-    chunk_len = 441  # 441 samples  = 10 ms  ; 1 second = 1000 ms
-    start = 0
+    return None
 
-    if margin_start + margin_end >= silence_min_len:
-        print("Error, margin sum bigger than silence length.")
-        return None
+'''if len(sys.argv) < 2:
+    print("Vous devez donner un nom de fichier Wav à ouvrir")
+    exit(0)
 
-    for i in range(len(samples)):
-        s = abs(samples[i])
-        if not in_silence_zone:
-            if s <= threshold:
-                if chunk_count == 0:
-                    start = i
-                chunk_count += 1
-                if chunk_count >= chunk_len:
-                    in_silence_zone = True
+input_filename = sys.argv[1]
 
+input_filename_error = check_input_file(input_filename)
+if input_filename_error:
+    print("ERREUR:", input_filename_error)
+    exit(0)
 
-            else:
-                chunk_count = 0
-        else:
-            if s > threshold:
-                in_silence_zone = False
-                #  GLITCH_MAX_LEN = int(441 * 0.6)
-                if len(points) > 0 and start - points[-1][1] <= glitch_max_len:
-                    points[-1] = (points[-1][0], i)
-                else:
-                    points.append((start, i))
-
-    # SILENCE_MIN_LEN = 4410 * 4  # 400 ms
-    points = [(point[0] + margin_start, point[1] - margin_end) for point in points
-              if point[1] - point[0] >= silence_min_len]
-
-    return points
+print("Fichier d'entrée:", input_filename)'''
 
 
-#filename = "test_glitch.wav"
-filename = "test1.wav"
-
-
-wav_samples = wave_file_read_samples(filename)
-if wav_samples is None:
+# 1 - Lecture du fichier wav et récupération des samples
+#input_filename = "test_anglais.wav"
+'''wav_samples = wave_file_read_samples(input_filename)
+if wav_samples == None:
     print("ERREUR: Aucun sample à la lecture du fichier wav")
     exit(0)
 
-wav_samples_norm = normalize_sample(wav_samples, 1000)
+# 2 - Processing : algorithme pour supprimer les silences
+wav_samples_without_silences = get_samples_without_silences(wav_samples)
 
-silence_points = get_silence_points(wav_samples_norm, SILENCE_THRESHOLD, GLITCH_MAX_LEN,
-                                    SILENCE_MIN_LEN, MARGIN_START, MARGIN_END)
-print(silence_points)
-
-
-def delete_silence_pointes(samples, silence_points):
-    outsample = []
-
-    start = 0
-    for p in silence_points:
-        if p[0] > start:
-            outsample += samples[:p[0]]
-            start = p[1]
-
-        if start < len(samples)-1:
-            outsample += samples[start:]
-    return outsample
+# 3 - Ecriture du fichier wav de sortie
+output_filename = input_filename[:-4] + "_OUT" + input_filename[-4:]
+print("Fichier de sortie", output_filename)
+wave_file_write_samples(output_filename, wav_samples_without_silences)'''
 
 
-wav_samples_without_silence = delete_silence_pointes(wav_samples, silence_points)
+class SilenceRemoverApp(App):
+    def build(self):
+        Window.bind(on_dropfile=self._on_file_drop)
+        self.message_label = Label(text='Déposez un fichier Wav')
+        return self.message_label
 
-inserttxt = "_OUT"
-# Trouver l'index du premier point:
-idx = filename.index(".")
-# Cree une variable qui est formé du filename jusqu'a index-1 du "." + inserttxt et la partie restante du filename
-outputFilename = filename[:idx] + inserttxt + filename[idx:]
+    def _on_file_drop(self, window, file_path):
+        input_filename = file_path.decode("utf-8")
+        print(file_path)
 
-wave_file_write_samples(outputFilename, wav_samples_without_silence)
+        input_filename_error = check_input_file(input_filename)
+        if input_filename_error:
+            print("ERREUR:", input_filename_error)
+            self.message_label.text = "ERREUR\n" + input_filename_error
+            return
 
-plt.plot(wav_samples_norm)
-plt.axhline(y=SILENCE_THRESHOLD, color='r')
-for p in silence_points:
-    plt.axvline(x=p[0], color='r')
-    plt.axvline(x=p[1], color='y')
+        wav_samples = wave_file_read_samples(input_filename)
+        if wav_samples is None:
+            self.message_label.text = "ERREUR\n" + "Aucun sample à la lecture du fichier wav"
+            return
 
-plt.show()
+        # 2 - Processing : algorithme pour supprimer les silences
+        wav_samples_without_silences = get_samples_without_silences(wav_samples)
 
+        # 3 - Ecriture du fichier wav de sortie
+        output_filename = input_filename[:-4] + "_OUT" + input_filename[-4:]
+        print("Fichier de sortie", output_filename)
+
+        output_filename_without_path = path.basename(output_filename)
+
+        self.message_label.text = "FICHIER GÉNÉRÉ\n" + output_filename_without_path
+        wave_file_write_samples(output_filename, wav_samples_without_silences)
+
+
+SilenceRemoverApp().run()

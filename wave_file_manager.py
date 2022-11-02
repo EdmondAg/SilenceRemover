@@ -1,21 +1,13 @@
 import wave
 
-# test1.wav
-# https://docs.python.org/3/library/wave.html
-
-
 def get_bytes_sample_from_16bits_sample(sample_16bits):
     unsigned_sample = sample_16bits
     if sample_16bits < 0:
         unsigned_sample = sample_16bits + 65536
-    # 210 = (0 x 256) + 210
-    #
-    # 210  0
-
-    # 500 = (1 x 256) + 244
-    byte_ms = unsigned_sample//256
-    byte_ls = unsigned_sample-byte_ms*256
+    byte_ms = unsigned_sample // 256
+    byte_ls = unsigned_sample - byte_ms * 256
     return byte_ls, byte_ms
+
 
 def get_bytes_samples_from_16bits_samples(samples_16bits):
     bytes = []
@@ -26,25 +18,26 @@ def get_bytes_samples_from_16bits_samples(samples_16bits):
     return bytes
 
 
-# byte_ls -> [i] (Octet poids faible "Least significant")
-# byte_ms -> [i+1] (Octet poids fort "Most significant")
 def get_16bits_sample_from_bytes(byte_ls, byte_ms):
-    unsigned = byte_ls + byte_ms*256
+    unsigned = byte_ls + byte_ms * 256
     signed = unsigned
     if unsigned > 32767:
-        signed = unsigned-65536
+        signed = unsigned - 65536
     return signed
+
 
 def get_16bits_samples_from_bytes(bytes):
     samples = []
-    for i in range(0,len(bytes)-1, 2):
-        sample = get_16bits_sample_from_bytes(bytes[i], bytes[i+1])
+    for i in range(0, len(bytes) - 1, 2):
+        sample = get_16bits_sample_from_bytes(bytes[i], bytes[i + 1])
         samples.append(sample)
     return samples
 
-WAV_FORMAT_N_CHANNELS = 1 # mono
-WAV_FORMAT_SAMPLE_WIDTH = 2 # 16bits
+
+WAV_FORMAT_N_CHANNELS = 1
+WAV_FORMAT_SAMPLE_WIDTH = 2
 WAV_FORMAT_FRAMERATE = 44100
+
 
 def wave_file_read_samples(filename):
     wr = wave.open(filename, mode="rb")
@@ -62,13 +55,13 @@ def wave_file_read_samples(filename):
     print("nframes", nframes)
     frames_as_bytes = wr.readframes(nframes)
 
-    # convertir les samples
+
     samples_16bits = get_16bits_samples_from_bytes(frames_as_bytes)
 
     wr.close()
     return samples_16bits
 
-# samples au format 16bits
+
 def wave_file_write_samples(filename, samples):
     ww = wave.open(filename, mode="wb")
 
@@ -77,7 +70,6 @@ def wave_file_write_samples(filename, samples):
     ww.setframerate(WAV_FORMAT_FRAMERATE)
 
     ww.setnframes(len(samples))
-    # Données 8bits
     bytes = get_bytes_samples_from_16bits_samples(samples)
     ww.writeframesraw(bytearray(bytes))
 
